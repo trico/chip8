@@ -7,13 +7,13 @@ import (
     // "encoding/hex"
 )
 
-func operation(opcode int, pc *int, cpu *cpu, memory *[4096]byte, gfx *[32*64]byte) {
+func operation(opcode int, cpu *cpu, memory *[4096]byte, gfx *[32*64]byte) {
   switch opcode & 0xF000 {
   case 0xA000:
     // Move NNN to I
     fmt.Println("Move NNN to I")
     cpu.I = (opcode & 0x0FFF)
-    *pc += 2
+    cpu.pc += 2
 
   case 0xC000:
     fmt.Println("set NN into VX")
@@ -22,27 +22,27 @@ func operation(opcode int, pc *int, cpu *cpu, memory *[4096]byte, gfx *[32*64]by
 
     fmt.Println(nn)
     cpu.V[index] = byte(nn)
-    *pc += 2
+    cpu.pc += 2
 
   case 0x2000:
     fmt.Println("JUMPS to SR NNN")
     cpu.stack_pointers += 1
     // cpu.stack[cpu.stack_pointers] = int(pc >> 8)
     new_pc := (opcode & 0x0FFF) >> 8
-    *pc = new_pc
+    cpu.pc = new_pc
 
   case 0x7000:
     fmt.Println("adds NN into VX")
     index := (opcode & 0x0F00) >> 8
     cpu.V[index] += byte((opcode & 0x00FF))
-    *pc += 2
+    cpu.pc += 2
 
   case 0x6000:
     fmt.Println("sets NN into VX")
     index := (opcode & 0x0F00) >> 8
     nn := (opcode & 0x00FF)
     cpu.V[index] = byte(nn)
-    *pc += 2
+    cpu.pc += 2
 
   case 0x8000:
     fmt.Println("Dentro de 8xxx")
@@ -55,20 +55,20 @@ func operation(opcode int, pc *int, cpu *cpu, memory *[4096]byte, gfx *[32*64]by
       cpu.V[(opcode & 0x0F00) >> 8] = cpu.V[(opcode & 0x00F0) >> 4]
     }
 
-    *pc += 2
+    cpu.pc += 2
 
   case 0x1000:
     fmt.Println("JUMP")
-    *pc = opcode & 0x0FFF
+    cpu.pc = opcode & 0x0FFF
 
   case 0x3000:
     fmt.Println("if NN == VX skip next")
     index := (opcode & 0x0F00) >> 8
     nn := (opcode & 0x00FF)
     if cpu.V[index] == byte(nn) {
-      *pc += 4
+      cpu.pc += 4
     }else{
-      *pc += 2
+      cpu.pc += 2
     }
   case 0xD000:
     fmt.Println("drawing")
@@ -93,10 +93,10 @@ func operation(opcode int, pc *int, cpu *cpu, memory *[4096]byte, gfx *[32*64]by
       }
     }
 
-    *pc += 2
+    cpu.pc += 2
   default:
     fmt.Printf("No implemented %x" , opcode)
-    *pc += 2
+    cpu.pc += 2
   }
 }
 
@@ -129,7 +129,6 @@ func debugRender(gfx *[32*64]byte) {
 func main() {
   var gfx [32*64]byte
   var memory [4096]byte
-  var pc = 0x200
 
   b, err := ioutil.ReadFile("MAZE")
 
@@ -137,14 +136,15 @@ func main() {
     panic(err)
   }
 
+  cpu := NewCpu()
+
   for i, nim := range b {
-    memory[pc+i] = nim
+    memory[cpu.pc+i] = nim
   }
 
-  cpu := NewCpu()
   for i := 0; i < 1000; i++ {
-    opcode := int(memory[pc]) << 8 | int(memory[pc + 1]);
-    operation(opcode, &pc, cpu, &memory, &gfx)
+    opcode := int(memory[cpu.pc]) << 8 | int(memory[cpu.pc + 1]);
+    operation(opcode, cpu, &memory, &gfx)
   }
 
   debugRender(&gfx)
