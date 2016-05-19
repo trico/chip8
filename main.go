@@ -25,11 +25,32 @@ func operation(opcode int, cpu *cpu, memory *[4096]byte, gfx *[32*64]byte) {
     cpu.pc += 2
 
   case 0x2000:
-    fmt.Println("JUMPS to SR NNN")
+    fmt.Println("STACK NNN")
+    cpu.stack[cpu.stack_pointers] = cpu.pc
+    fmt.Printf("popa %d", cpu.pc)
     cpu.stack_pointers += 1
-    // cpu.stack[cpu.stack_pointers] = int(pc >> 8)
-    new_pc := (opcode & 0x0FFF) >> 8
-    cpu.pc = new_pc
+    cpu.pc = (opcode & 0x0FFF)
+
+  case 0x0000:
+
+    fmt.Println("Dentro de 0000")
+    num := (opcode & 0x00FF)
+
+    switch num {
+    case 0xEE:
+      fmt.Println("Dentro de 00EE")
+      cpu.stack_pointers -= 1
+      fmt.Printf("PValue %d", cpu.stack[cpu.stack_pointers])
+      cpu.pc = cpu.stack[cpu.stack_pointers]
+
+    case 0xE0:
+      gfx = nil
+
+    default:
+      fmt.Printf("00 no implementado %x" , opcode)
+    }
+
+    // cpu.pc += 2
 
   case 0x7000:
     fmt.Println("adds NN into VX")
@@ -51,8 +72,27 @@ func operation(opcode int, cpu *cpu, memory *[4096]byte, gfx *[32*64]byte) {
     switch num {
     case 0:
       fmt.Println("En caso 0")
-
       cpu.V[(opcode & 0x0F00) >> 8] = cpu.V[(opcode & 0x00F0) >> 4]
+
+    case 2:
+      fmt.Println("En caso 2")
+
+      cpu.V[(opcode & 0x0F00) >> 8] = cpu.V[(opcode & 0x0F00) >> 8] & cpu.V[(opcode & 0x00F0) >> 4]
+    case 5:
+      fmt.Println("En caso 5")
+      x := cpu.V[(opcode & 0x0F00) >> 8]
+      y := cpu.V[(opcode & 0x00F0) >> 4]
+
+      if x > y {
+        cpu.V[0xF] = 1
+      }else{
+        cpu.V[0xF] = 0
+      }
+
+      cpu.V[(opcode & 0x0F00) >> 8] = x - y
+
+    default:
+      fmt.Printf("8k no implementado %d", num)
     }
 
     cpu.pc += 2
@@ -70,6 +110,17 @@ func operation(opcode int, cpu *cpu, memory *[4096]byte, gfx *[32*64]byte) {
     }else{
       cpu.pc += 2
     }
+
+  case 0x4000:
+    fmt.Println("if NN != VX skip next")
+    index := (opcode & 0x0F00) >> 8
+    nn := (opcode & 0x00FF)
+    if cpu.V[index] == byte(nn) {
+      cpu.pc += 2
+    }else{
+      cpu.pc += 4
+    }
+
   case 0xD000:
     fmt.Println("drawing")
     x := cpu.V[((opcode & 0x0F00) >> 8)]
@@ -86,9 +137,8 @@ func operation(opcode int, cpu *cpu, memory *[4096]byte, gfx *[32*64]byte) {
           lo := int(x) + xline + ((int(y)+yline)*64)
           if gfx[lo] == 1 {
             cpu.V[0xF] = 1
-          }else{
-            gfx[lo] ^= 1
           }
+          gfx[lo] ^= 1
         }
       }
     }
@@ -104,7 +154,7 @@ type cpu struct {
   I int
   pc int
   V [16]byte
-  stack [16]byte
+  stack [16]int
   stack_pointers int
 }
 
@@ -118,7 +168,7 @@ func debugRender(gfx *[32*64]byte) {
       if gfx[(y*64)+x] == 0{
         fmt.Printf(" ")
       }else{
-        fmt.Printf("0")
+        fmt.Printf("◾")
       }
       fmt.Printf("")
     }
@@ -142,7 +192,7 @@ func main() {
     memory[cpu.pc+i] = nim
   }
 
-  for i := 0; i < 1000; i++ {
+  for i := 0; i < 1260; i++ {
     opcode := int(memory[cpu.pc]) << 8 | int(memory[cpu.pc + 1]);
     operation(opcode, cpu, &memory, &gfx)
   }
